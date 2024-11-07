@@ -1,40 +1,57 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import PredictionForm from './components/PredictionForm';
 import PredictionList from './components/PredictionList';
+import axios from 'axios';
 
 function App() {
-    const [predictions, setPredictions] = useState([]);
+    const [predictions, setPredictions] = useState([]); // Untuk menyimpan data history prediksi
     const [latestPrediction, setLatestPrediction] = useState(null);
 
-    const handleSubmit = (inputText) => {
-        // Membuat hasil prediksi acak untuk Sentimen dan Emosi
-        const sentiments = ['Positive', 'Negative'];
-        const emotions = ['Happy', 'Sadness', 'Love','Anger','Fear'];
-        const newPrediction = {
-            'Customer Review': inputText,
-            'Sentimen': sentiments[Math.floor(Math.random() * sentiments.length)],
-            'Emotion': emotions[Math.floor(Math.random() * emotions.length)],
-        };
-
-        // Menambahkan prediksi ke daftar dan mengatur prediksi terbaru
-        setPredictions((prevPredictions) => [...prevPredictions, newPrediction]);
-        setLatestPrediction(newPrediction);
+    // Fungsi untuk mengambil data history prediksi dari GET API
+    const fetchHistory = async () => {
+        try {
+            const response = await axios.get('http://127.0.0.1:5000/predictions'); // Pastikan URL endpoint API benar
+            if (response.data && Array.isArray(response.data)) {
+                setPredictions(response.data); // Mengatur data history ke dalam state predictions
+            } else {
+                console.error("Unexpected data format:", response.data);
+            }
+        } catch (error) {
+            console.error("Error fetching history data:", error);
+        }
     };
 
-    // Fungsi untuk menghitung jumlah Sentimen dan Emosi dengan filtering
-    const countLabels = (predictions) => {
-        const sentimentCount = { Positive: 0, Negative: 0 };
-        const emotionCount = { Happy: 0, Love: 0, Sadness: 0, Fear: 0, Anger: 0 };
+    // Panggil fungsi fetchHistory saat komponen pertama kali dimuat
+    useEffect(() => {
+        fetchHistory();
+    }, []);
 
-        predictions.forEach((prediction) => {
-            sentimentCount[prediction.Sentimen]++;
-            emotionCount[prediction.Emotion]++;
-        });
+    // Fungsi untuk mengirim review pelanggan ke POST API dan mendapatkan prediksi
+    const handleSubmit = async (inputText) => {
+        try {
+            const formData = new FormData();
+            formData.append("Data", inputText);
 
-        return { sentimentCount, emotionCount };
+            const response = await axios.post('http://127.0.0.1:5000/predict', formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                },
+            });
+
+            if (response.data) {
+                const newPrediction = response.data;
+                console.log("Prediction received:", newPrediction);
+
+                // Tambahkan prediksi baru ke history dan set prediksi terbaru
+                setPredictions((prevPredictions) => [...prevPredictions, newPrediction]);
+                setLatestPrediction(newPrediction);
+            } else {
+                console.error("No prediction data returned from API.");
+            }
+        } catch (error) {
+            console.error("Prediction request error:", error);
+        }
     };
-
-    const { sentimentCount, emotionCount } = countLabels(predictions);
 
     return (
         <div style={appContainerStyle}>
@@ -50,24 +67,10 @@ function App() {
 
             {/* Kotak Perhitungan Label Sentimen dan Emosi + History Prediksi */}
             <div style={historyContainerStyle}>
-                <div style={labelCountContainerStyle}>
-                    <div style={labelCountStyle}>
-                        <h3>Sentimen Count:</h3>
-                        <p>
-                            👍🏼Positive: {sentimentCount.Positive} | 👎🏼Negative: {sentimentCount.Negative}
-                        </p>
-
-                        <h3>Emotion Count:</h3>
-                        <p>
-                            😁Happy: {emotionCount.Happy} | 🥰Love: {emotionCount.Love} | 😢Sadness: {emotionCount.Sadness} | 😨Fear: {emotionCount.Fear} | 😡Anger: {emotionCount.Anger}
-                        </p>
-                    </div>
-                </div>
-
                 {/* Tabel History Prediksi */}
                 <div style={predictionListContainerStyle}>
                     <PredictionList predictions={predictions} />
-                </div>
+                </div> 
             </div>
         </div>
     );
@@ -77,7 +80,7 @@ const appContainerStyle = {
     textAlign: 'center',
     backgroundColor: '#ecf0f1',
     padding: '20px',
-    minHeight: '100vh', // Pastikan ini '100vh' untuk memastikan halaman terisi penuh
+    minHeight: '100vh',
 };
 
 const headerStyle = {
@@ -103,27 +106,14 @@ const historyContainerStyle = {
     backgroundColor: '#ffffff',
     borderRadius: '8px',
     boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)',
-    display: 'flex', // Menggunakan flexbox untuk layout horizontal
-    justifyContent: 'space-between', // Menyusun konten di kedua sisi
-};
-
-const labelCountContainerStyle = {
-    flex: 1, // Memberikan ruang untuk label count
-    marginRight: '10px', // Menambahkan jarak antara count dan tabel
-};
-
-const labelCountStyle = {
-    textAlign: 'left',
-    marginBottom: '5px',
-    padding: '12px',
-    backgroundColor: '#ecf0f1',
-    borderRadius: '10px'
+    display: 'flex',
+    justifyContent: 'space-between',
 };
 
 const predictionListContainerStyle = {
-    width: '80%',
-    maxWidth: '700px',
-    flex: 2, // Memberikan lebih banyak ruang untuk tabel prediksi
+    width: '100%',
+    maxWidth: '1200px',
+    flex: 2,
     backgroundColor: '#ffffff',
     borderRadius: '8px',
     boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)',
